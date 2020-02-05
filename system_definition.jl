@@ -1,0 +1,120 @@
+using Printf
+using Statistics
+using LinearAlgebra
+using MDBM
+using Interpolations
+using Plots
+pyplot()
+using PyPlot
+pygui(true);
+using DelimitedFiles
+using Random
+using DifferentialEquations
+
+rng = MersenneTwister(1234)
+
+################### SYSTEM DEFINITION ###################
+#function definiton : f(t)=A(t)y(t)+B(t)y(t-tau)
+dim=4 #SYSTEM DIMENSION (Post-Cauchy)
+
+#SYSTEM PARAMETERS
+mx=0.01986;my=0.02008;kx=1.60312;ky=1.155697;sx=408866;sy=413445; #structural parameters
+kt=644*10^6;kr=0.368; #cutting parameters
+d=0.008;ae=0.0004;z=1;strat=1.0; #tool/strategy parameters
+
+
+omega=5000 #spindle speed
+w=0.002 #axial immersion
+#v=[1 mx  2 my  3 kx  4 ky  5 sx  6 sy  7 kt  8 kr  9 d  10 ae  11 z  12 strat  13 omega  14 w ]
+v=[mx my kx ky sx sy kt kr d ae z strat omega w]
+
+#time delay
+function tau(v1)
+    (2*pi)/(v1[13]*v1[11])
+end
+
+#period
+function T(v1)
+    (2*pi)/v1[13]
+end
+
+function Mm(t,v1) #structural matrix Mm
+    return([v1[1] 0; 0 v1[2]])
+end
+
+function Km(t,v1) #structural matrix Km
+    return([v1[3] 0; 0 v1[4]])
+end
+
+function Sm(t,v1) #structural matrix Sm
+    return([v1[5] 0; 0 v1[6]])
+end
+
+function g(phi,phi_in1,phi_out1) #sign function (working teeth)
+    g_val=0
+    if phi < phi_in1
+        g_val=0
+    elseif (phi >= phi_in1) && (phi <= phi_out1)
+        g_val=1
+    else
+        g_val=0
+    end
+    return(g_val)
+end
+
+function W(t,v1) #periodic matrix
+    if v1[12]==1.0
+        aepu=v1[10]/v1[9]; phi_in=0; phi_out=acos(1-2*aepu);
+    else
+        aepd=2-v1[10]/v1[9]; phi_in=acos(1-2(aepd-1)); phi_out=pi;
+    end
+    zint=trunc(Int,v1[11])
+    phi=zeros(zint)
+    for j=0:(zint-1)
+    phi[j+1]=mod(t*v1[13]+j*2*pi/v1[11],2*pi)
+    end
+    W_f=zeros(Float64,2,2)
+    for j = 0:(zint-1)
+        W_f=W_f+g(phi[j+1],phi_in,phi_out)*[-sin(2*phi[j+1])-v1[8]+v1[8]*cos(2*phi[j+1]) -1-cos(2*phi[j+1])-v1[8]*sin(2*phi[j+1]); 1-cos(2*phi[j+1])-v1[8]*sin(2*phi[j+1]) sin(2*phi[j+1])-v1[8]-v1[8]*cos(2*phi[j+1])]
+    end
+    return ((v1[14]*v1[7]/2)*W_f)
+end
+
+function A(t,v1) #coefficient matrix A
+    vcat(hcat(-inv(Mm(t,v1))*Km(t,v1),-inv(Mm(t,v1))*(Sm(t,v1)-W(t,v1))),hcat(Matrix{Float64}(I, 2, 2),zeros(2,2)))
+end
+
+function B(t,v1) #coefficient matrix B (delay)
+    vcat(hcat(zeros(2,2),-inv(Mm(t,v1))*W(t,v1)),hcat(zeros(2,2),zeros(2,2)))
+end
+
+###################################################################################
+
+################### SYSTEM DEFINITION ###################
+
+dim=2 #DoF of the system (after Cauchy transcription)
+
+omega=1; kappa=0.2; delta=0.5; epsilon=1.0; b=0.2; tau0=2*pi;
+
+#v=[1 omega  2 kappa  3 delta  4 epsilon  5 b  6 tau0]
+v=[omega kappa delta epsilon b tau0]
+
+#time delay
+function tau(v1)
+    v1[6]
+end
+
+#period
+function T(v1)
+    (2*pi)/v1[1]
+end
+
+#matrix coefficients
+function A(t,v1)
+    [-v1[2] -(v1[3]+v1[4]*cos(v1[1]*t)); 1 0]
+end
+
+function B(t,v1)
+    [0 v1[5]; 0 0]
+end
+#########################################################
