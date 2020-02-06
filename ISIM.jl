@@ -63,7 +63,11 @@ function iter(S1,V1)
        H=pinv(S)*V #pseudo-inverse calculation
        eigH=eigen(H)
        Hval=eigH.values #eigenvalue calculation
-       Vj=V*eigH.vectors #calculating of new set of eigenvectors
+       Vj1=V*eigH.vectors #calculating of new set of eigenvectors
+       Vj=zeros(ComplexF64,n1*dim,mult1)
+       for j=1:mult1
+           Vj[:,j]=normalize(Vj1[:,j])
+       end
        Sj=zeros(ComplexF64,n1,mult1*dim) #creating new initial solution array
        for p=1:n1
            for s=1:mult1
@@ -75,23 +79,55 @@ function iter(S1,V1)
        return((Sj,Hval))
 end
 
+function convreq(eigval0,Nev,Nlast)
+    eigval1=norm.(eigval0)
+    (m1,g1)=size(eigval1)
+    if m1<Nev Nev=m1 end
+    if g1<Nlast Nlast=g1 end
+    eigval1=eigval1[:,(end+1)-Nlast:end]
+    Nlasthalf=convert(Int,floor(Nlast/2))
+    diff=zeros(Float64,Nev)
+    for m=1:Nev
+        eigvalsort=sort(eigval1[end-m+1,:])
+        eigvalmin=mean(eigvalsort[1:Nlasthalf])
+        eigvalmax=mean(eigvalsort[Nlasthalf+1:end])
+        diff[m]=abs(eigvalmax-eigvalmin)
+    end
+    return(diff)
+end
+
+function appendcrit(convreq1,crit)
+    Nev=size(convreq1)[1]
+    ret=false
+    if trues(Nev)==isless.(convreq1,crit)
+        ret=true
+    end
+    return(ret)
+end
+
+appendcrit([1.0, 10, 3.1],4.2)
+
 function ISIM(v1)
+        gmax1=gmax
+        mult1=mult
+
         dt=tau(v1)/(n-1) #timestep
         nmax=floor(Int,round((T(v1)/dt)))
         kint=floor(Int,(T(v1)/tau(v1)))
         nrest=nmax-kint*(n-1)
         tvec=collect(-tau(v1):dt:(nmax*dt))
-        sol00=randn!(rng, zeros(ComplexF64,n,mult*dim))
-        sol=zeros(ComplexF64,nmax,mult*dim)  #empty solution matrix
-        sol0m=zeros(ComplexF64,n,mult*dim)
-        sol0=zeros(ComplexF64,size(tvec)[1],mult*dim+1)
-        Hval0=zeros(ComplexF64,mult)
+        sol00=randn!(rng, zeros(ComplexF64,n,mult1*dim))
+        sol=zeros(ComplexF64,nmax,mult1*dim)  #empty solution matrix
+        sol0m=zeros(ComplexF64,n,mult1*dim)
+        sol0=zeros(ComplexF64,size(tvec)[1],mult1*dim+1)
+        Hval0=zeros(ComplexF64,mult1)
 
-        for g=1:gmax
+        g=1
+        while g <= gmax1
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"
-                solarr=fsol(tau(v1),sol0[1:n+1,:],Ai(v1),Bi(v1),nmax*dt,mult,dt)
+                solarr=fsol(tau(v1),sol0[1:n+1,:],Ai(v1),Bi(v1),nmax*dt,mult1,dt)
 
                 for tv=0:n-1
                     for j=1:mult*dim
@@ -103,27 +139,40 @@ function ISIM(v1)
                 for k=1:kint
                 interp=it(sol0[1+(k-1)*(n-1):n+(k-1)*(n-1)+1,:])
                     for j=1:(n-1)
-                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1]),interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BRK4,v1,tau(v1),mult))
+                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1]),interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BRK3,v1,tau(v1),mult1))
                     end
                 end
                 if nrest>0
                     interp=it(sol0[1+(kint-1)*(n-1):n+(kint-1)*(n-1),:])
                     for j=1:nrest
-                        sol0[n+j+(kint-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+j+(kint-1)*(n-1),1]),interp,sol0[n+j-1+(kint-1)*(n-1),2:end],dt,BRK4,v1,tau(v1),mult))
+                        sol0[n+j+(kint-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+j+(kint-1)*(n-1),1]),interp,sol0[n+j-1+(kint-1)*(n-1),2:end],dt,BRK3,v1,tau(v1),mult1))
                     end
                 end
                 sol0m=sol0[end-(n-1):end,2:end]
 
             end
-            resit=iter(sol0[1:n,2:mult*dim+1],sol0m)
+            resit=iter(sol0[1:n,2:mult1*dim+1],sol0m)
             sol00=resit[1]
-            Hval0=hcat(Hval0,resit[2])
+            Hval0=hcat(Hval0,sort(resit[2],lt=(x,y)->isless(norm(y),norm(x)))[1:mult,:])
+
+            if appendcrit(convreq(Hval0[:,2:end],4,2),1e-4)==false && g==gmax1
+                gmax1=gmax1+4
+                mult1=mult1+2
+                #sol00=hcat(sol00,sol00[:,end-2*dim+1:end])
+                sol00=hcat(sol00,randn!(rng, zeros(ComplexF64,n,2*dim)))
+                sol=zeros(ComplexF64,nmax,(mult1*dim))
+            end
+            if g>200
+                break
+            end
+            g += 1
         end
-        print(gmax)
+        print(g-1)
         return(Hval0[:,2:end])
 end
 
-n=50
-mult=6
+n=100
+mult=4
 method="RK4"
-gmax=5
+gmax=10
+ISIM(v)

@@ -45,17 +45,17 @@ end
 
 gmax=16
 mult=32
-n=2002
+n=2000
 method="RK4"
 valrefAn=normmax((ISIM(v))[:,end])
 valrefA=real(valrefAn)+im*abs(imag.(valrefAn))
 
-gmaxtest=collect(2:1:3)
+gmaxtest=collect(2:1:8)
 ntest=collect(100:100:1500)
-multtest=collect(4:1:6)
+multtest=collect(4:1:12)
 
 text=test(gmaxtest,ntest,multtest,2)
 
-open("temp.txt", "w") do io
+open("temp1.txt", "w") do io
             writedlm(io,text)
 end
