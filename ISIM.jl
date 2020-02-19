@@ -13,9 +13,12 @@ using DifferentialEquations
 rng = MersenneTwister(1234)
 
 function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to tend
-    alg =  MethodOfSteps(BS3())
+    alg=alg1
+    #alg =  MethodOfSteps(BS3())
+    #alg=MethodOfSteps(Tsit5())
     #alg =  MethodOfSteps(AutoTsit5(Rosenbrock23(autodiff=false)))
     #alg=MethodOfSteps(RK4())
+    #alg=MethodOfSteps(Vern6())
     lags = [tau]
     p = (tau,AA,BB,mult1)
     interp=it(IF)
@@ -24,8 +27,9 @@ function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to t
     tspan = (0.0,tend)
     u0 = sub(interp,0.0)
     prob = DDEProblem(bc_model,u0,h,tspan,p; constant_lags=lags)
-    return(solve(prob,alg,dtmax=dt1,dtmin=dt1,force_dtmin=true,saveat=collect(0.0:dt1:tend)))
-    #return(solve(prob,alg,dt=dt1,dtmax=dt1,dtmin=dt1,force_dtmin=true,saveat=collect(0.0:dt1:tend)))
+    #return(solve(prob,alg,abstol=1e-6,reltol=1e-3,dtmax=dt1,saveat=collect(0.0:dt1:tend),adaptive=true))
+    #return(solve(prob,alg,abstol=1e-6,reltol=1e-3,saveat=collect(0.0:dt1:tend),adaptive=true))
+    return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,saveat=collect(0.0:dt1:tend),adaptive=true))
 end
 
 function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
@@ -63,7 +67,11 @@ function iter(S1,V1)
        H=pinv(S)*V #pseudo-inverse calculation
        eigH=eigen(H)
        Hval=eigH.values #eigenvalue calculation
-       Vj=V*eigH.vectors #calculating of new set of eigenvectors
+       Vj0=V*eigH.vectors #calculating of new set of eigenvectors
+       Vj=zeros(ComplexF64,n1*dim,mult1)
+       for j=1:mult1
+           Vj[:,j]=normalize(Vj0[:,j])
+       end
        Sj=zeros(ComplexF64,n1,mult1*dim) #creating new initial solution array
        for p=1:n1
            for s=1:mult1
@@ -80,7 +88,7 @@ function ISIM(v1)
         nmax=floor(Int,round((T(v1)/dt)))
         kint=floor(Int,(T(v1)/tau(v1)))
         nrest=nmax-kint*(n-1)
-        tvec=collect(-tau(v1):dt:(nmax*dt))
+        tvec=collect(-tau(v1):dt:(nmax*dt)+1e-10*dt)
         sol00=randn!(rng, zeros(ComplexF64,n,mult*dim))
         sol=zeros(ComplexF64,nmax,mult*dim)  #empty solution matrix
         sol0m=zeros(ComplexF64,n,mult*dim)
@@ -99,17 +107,17 @@ function ISIM(v1)
                     end
                 end
 
-            elseif method == "RK4"
+            elseif method == "RK"
                 for k=1:kint
                 interp=it(sol0[1+(k-1)*(n-1):n+(k-1)*(n-1)+1,:])
                     for j=1:(n-1)
-                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1]),interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BRK4,v1,tau(v1),mult))
+                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1]),interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BR,v1,tau(v1),mult))
                     end
                 end
                 if nrest>0
                     interp=it(sol0[1+(kint-1)*(n-1):n+(kint-1)*(n-1),:])
                     for j=1:nrest
-                        sol0[n+j+(kint-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+j+(kint-1)*(n-1),1]),interp,sol0[n+j-1+(kint-1)*(n-1),2:end],dt,BRK4,v1,tau(v1),mult))
+                        sol0[n+j+(kint-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+j+(kint-1)*(n-1),1]),interp,sol0[n+j-1+(kint-1)*(n-1),2:end],dt,BR,v1,tau(v1),mult))
                     end
                 end
                 sol0m=sol0[end-(n-1):end,2:end]
@@ -123,7 +131,16 @@ function ISIM(v1)
         return(Hval0[:,2:end])
 end
 
-n=50
-mult=6
-method="RK4"
-gmax=5
+n=500
+mult=8
+method="Julia"
+gmax=30
+BR=BRK4
+
+@time ISIM(v)
+
+
+valrefAn
+
+method="RK"
+@time evp=ISIM(v)

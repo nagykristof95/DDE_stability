@@ -94,7 +94,7 @@ end
 
 dim=2 #DoF of the system (after Cauchy transcription)
 
-omega=1; kappa=0.2; delta=0.5; epsilon=1.0; b=0.2; tau0=2*pi;
+omega=1; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;
 
 #v=[1 omega  2 kappa  3 delta  4 epsilon  5 b  6 tau0]
 v=[omega kappa delta epsilon b tau0]
@@ -111,10 +111,10 @@ end
 
 #matrix coefficients
 function A(t,v1)
-    [-v1[2] -(v1[3]+v1[4]*cos(v1[1]*t)); 1 0]
+    [-v1[2] -(v1[3]+v1[4]*cos(v1[1]*t)); 1.0 0.0]
 end
 
 function B(t,v1)
-    [0 v1[5]; 0 0]
+    [0.0 v1[5]; 0.0 0.0]
 end
 #########################################################

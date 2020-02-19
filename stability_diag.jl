@@ -15,7 +15,16 @@ rng = MersenneTwister(1234)
 ####### Multi-Dimensional Bisection Method #########
 
 function foo(x,y)
-    return(norm(normmax(ISIM([omega kappa x epsilon y tau0])[:,end]))-1)
+    return(norm(normmax(ISIM([omega kappa x epsilon y tau0])[:,end]))-0.8)
+end
+
+
+function foo(x,y)
+    return(norm(normmax(ISIMcont([omega kappa x epsilon y tau0])[:,end]))-1)
+end
+
+function foo(x,y)
+    return(norm(normmax(ISIM_LSM([omega kappa x epsilon y tau0])[:,end]))-1)
 end
 
 ax1=Axis(-1.0:0.5:5,"delta") # initial grid in x direction

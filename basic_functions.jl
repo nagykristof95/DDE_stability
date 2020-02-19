@@ -60,7 +60,7 @@ end
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
-    hist = h( out1,p, t-tau)
+    hist = h( out1, p, t-tau)
     dutemp=zeros(ComplexF64,mult*dim)
     for i1=0:dim:(mult-1)*dim
         for j=1:dim
@@ -96,7 +96,6 @@ BEE=(BaEE,BbEE,BcEE)
 
 ################## General functions ###############
 function it(A) #creating complex iteration array
-    #inttyp=BSpline(Linear(Line(OnGrid())))
     inttyp=BSpline(Quadratic(Reflect(OnCell())))
     #inttyp=BSpline(Linear())
     matrdim=size(A,2)-1
@@ -160,4 +159,30 @@ function evplot(a,k) #eigenvalue plot with circle
     Re_circle=[cos(n) for n in 0:0.05:2*pi]
     Im_circle=[sin(n) for n in 0:0.05:2*pi]
     return(Plots.plot!(plot1,Re_circle,Im_circle))
+end
+
+function inversecontrol(A0)
+    s=size(A0)[1]
+    B0=A0-Array(I,s,s)
+    return(round(sum(B0)))
+end
+
+function res1(solvar)
+    s=size(solvar)[1]
+    multvar=convert(Int,s/dim)
+    ret=zeros(ComplexF64,dim,multvar)
+    for j=1:multvar
+        ret[:,j]=solvar[1+(j-1)*dim:j*dim]
+    end
+    return(ret)
+end
+
+function res2(solvar)
+    s=size(solvar)[2]
+    multvar=convert(Int,s)
+    ret=zeros(ComplexF64,dim*multvar)
+    for j=1:multvar
+        ret[1+(j-1)*dim:j*dim]=solvar[:,j]
+    end
+    return(ret)
 end
