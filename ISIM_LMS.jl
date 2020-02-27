@@ -64,7 +64,11 @@ function iter_LSM(S10,V10,s0)
        H=pinv(S)*V #pseudo-inverse calculation
        eigH=eigen(H)
        Hval=eigH.values #eigenvalue calculation
-       Vj=V1*eigH.vectors #calculating of new set of eigenvectors
+       Vj0=V1*eigH.vectors #calculating of new set of eigenvectors
+       Vj=zeros(ComplexF64,(n1+(s0-1))*dim,mult1)
+       for j=1:mult1
+           Vj[:,j]=normalize(Vj0[:,j])
+       end
        Sj=zeros(ComplexF64,n1+(s0-1),mult1*dim) #creating new initial solution array
        for p=1:n1+(s0-1)
            for s=1:mult1
@@ -75,6 +79,10 @@ function iter_LSM(S10,V10,s0)
        end
        return((Sj,Hval))
 end
+
+
+
+
 
 ###################### ISIM with LSM #######################
 
@@ -110,9 +118,9 @@ function ISIM_LSM(v1)
         return(Hval0[:,2:end])
 end
 
-n=300
+n=50
 mult=4
 gmax=5
-
+BLM=BLM2
 
 sajt=ISIM_LSM(v)

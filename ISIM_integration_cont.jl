@@ -74,6 +74,9 @@ function fsol_int_ini(tau,IF,AA,BB,T,tend,mult1,dt1) #DE.jl solution defintion f
     for j=1:size(sol1i.t)[1]
     sol1i[1:mult1*dim,j]=res2(res1(sol1i[1:mult1*dim,j])*Hvec)
     end
+    # for j=1:mult1
+    #     Vj[:,j]=normalize(Vj0[:,j])
+    # end
     sol1i[mult1*dim+1:end,:].=0.0
         return(sol1i,Hval)
 end
@@ -143,9 +146,9 @@ function ISIM_cont(v1)
         return(Hval0[:,2:end])
 end
 
-abstol0=1e-6
-grids=80
-mult=8
+abstol0=1e-5
+grids=500
+mult=6
 gmax=5
 
 @time isimc=ISIM_cont(v)

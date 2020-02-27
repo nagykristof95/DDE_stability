@@ -60,7 +60,7 @@ end
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
-    hist = h( out1, p, t-tau)
+    h( out1, p, t-tau)
     dutemp=zeros(ComplexF64,mult*dim)
     for i1=0:dim:(mult-1)*dim
         for j=1:dim
@@ -73,6 +73,11 @@ function bc_model(du,u,h,p,t) #DE.jl problem definiton
     du[j] = dutemp[j]
     end
 end
+
+BaRK5=[0.0 0 0 0 0 0; 0.16666666666666666667 0 0 0 0 0; -0.21627570527696895373 0.54960903861030228706 0 0 0 0; 0.08482881411262012706 0.04162653285051884260 0.37354465303686103035 0 0 0; -0.08651098424575942561 0.37955562705964599292 0.01753570971622337002 0.35608631413655672933 0 0; -0.12499755969423778621 0.72695084642093284094 -0.38363171852137430626 0.29492374551818501854 0.32008801960982756632 0]
+BbRK5=[0.07892564703041163884, 0.15537176484794180580, 0.08925647030411638840, 0.51074352969588361160, -0.30537176484794180580, 0.47107435296958836116]
+BcRK5=[0.0, 1/6, 1/3, 1/2, 2/3, 5/6]
+BRK5=(BaRK5,BbRK5,BcRK5)
 
 BaRK4=[0 0 0 0; 0.5 0 0 0; 0 0.5 0 0; 0 0 1 0]
 BbRK4=[1/6, 1/3, 1/3, 1/6]
@@ -96,7 +101,10 @@ BEE=(BaEE,BbEE,BcEE)
 
 ################## General functions ###############
 function it(A) #creating complex iteration array
-    inttyp=BSpline(Quadratic(Reflect(OnCell())))
+    inttyp=inttyp0
+    #inttyp=BSpline(Quadratic(Line(OnGrid())))
+    #inttyp=BSpline(Cubic(Reflect(OnCell())))
+    #inttyp=BSpline(Cubic(Line(OnGrid())))
     #inttyp=BSpline(Linear())
     matrdim=size(A,2)-1
     step=abs(real(A[end,1]-A[1,1]))/(size(A,1)-1)

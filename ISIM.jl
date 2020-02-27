@@ -12,6 +12,8 @@ using Random
 using DifferentialEquations
 rng = MersenneTwister(1234)
 
+abstol0=1e-8
+
 function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to tend
     alg=alg1
     #alg =  MethodOfSteps(BS3())
@@ -27,9 +29,12 @@ function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to t
     tspan = (0.0,tend)
     u0 = sub(interp,0.0)
     prob = DDEProblem(bc_model,u0,h,tspan,p; constant_lags=lags)
-    #return(solve(prob,alg,abstol=1e-6,reltol=1e-3,dtmax=dt1,saveat=collect(0.0:dt1:tend),adaptive=true))
+    x=solve(prob,alg,adaptive=false,dt=dt1,progress=true)
+    print(size(x.t)[1])
+    return(x)
     #return(solve(prob,alg,abstol=1e-6,reltol=1e-3,saveat=collect(0.0:dt1:tend),adaptive=true))
-    return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,saveat=collect(0.0:dt1:tend),adaptive=true))
+    #return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,saveat=collect(0.0:dt1:tend),adaptive=true))
+    #return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,adaptive=true))
 end
 
 function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
@@ -109,9 +114,9 @@ function ISIM(v1)
 
             elseif method == "RK"
                 for k=1:kint
-                interp=it(sol0[1+(k-1)*(n-1):n+(k-1)*(n-1)+1,:])
+                interp=it(sol0[1+(k-1)*(n-1):n+1+(k-1)*(n-1),:])
                     for j=1:(n-1)
-                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1]),interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BR,v1,tau(v1),mult))
+                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1])+1e-14,interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BR,v1,tau(v1),mult))
                     end
                 end
                 if nrest>0
@@ -132,15 +137,14 @@ function ISIM(v1)
 end
 
 n=500
-mult=8
-method="Julia"
-gmax=30
-BR=BRK4
+mult=20
+gmax=20
 
+method="Julia"
+alg1=MethodOfSteps(RK4())
 @time ISIM(v)
 
 
-valrefAn
-
+BR=BRK4
 method="RK"
 @time evp=ISIM(v)
