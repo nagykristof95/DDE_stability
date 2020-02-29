@@ -1,22 +1,26 @@
+module BAS
+
 using Printf
 using Statistics
 using LinearAlgebra
-using MDBM
 using Interpolations
+using Random
+using DifferentialEquations
 using Plots
 pyplot()
 using PyPlot
 pygui(true);
-using DelimitedFiles
-using Random
-using DifferentialEquations
+using Revise
+includet("system_definition.jl")
+using Main.SYS
+
+export bc_model,it,sub, res1, res2, evplot,butcher,out1
 
 rng = MersenneTwister(1234)
-
-###################################################################################
+inttyp0=BSpline(Linear())
 
 function f(t,y,ytau,v1) #right-hand side for TNS
-    A(t,v1)*y+B(t,v1)*ytau
+    SYS.A(t,v1)*y+SYS.B(t,v1)*ytau
 end
 
 function Amult(t,v1,mult1)
@@ -58,22 +62,6 @@ function Bi(v1) #coefficient matrix B DE.jl
     return(t->B(t,v1))
 end
 
-function bc_model(du,u,h,p,t) #DE.jl problem definiton
-    tau,AA,BB,mult1 = p
-    h( out1, p, t-tau)
-    dutemp=zeros(ComplexF64,mult*dim)
-    for i1=0:dim:(mult-1)*dim
-        for j=1:dim
-            for jj=1:dim
-            dutemp[j+i1] = dutemp[j+i1]+AA(t)[j,jj]*u[jj+i1]+BB(t)[j,jj]*out1[jj+i1]
-            end
-        end
-    end
-    for j=1:mult*dim
-    du[j] = dutemp[j]
-    end
-end
-
 BaRK5=[0.0 0 0 0 0 0; 0.16666666666666666667 0 0 0 0 0; -0.21627570527696895373 0.54960903861030228706 0 0 0 0; 0.08482881411262012706 0.04162653285051884260 0.37354465303686103035 0 0 0; -0.08651098424575942561 0.37955562705964599292 0.01753570971622337002 0.35608631413655672933 0 0; -0.12499755969423778621 0.72695084642093284094 -0.38363171852137430626 0.29492374551818501854 0.32008801960982756632 0]
 BbRK5=[0.07892564703041163884, 0.15537176484794180580, 0.08925647030411638840, 0.51074352969588361160, -0.30537176484794180580, 0.47107435296958836116]
 BcRK5=[0.0, 1/6, 1/3, 1/2, 2/3, 5/6]
@@ -98,6 +86,23 @@ BaEE=[0.0]
 BbEE=[1.0]
 BcEE=[0.0]
 BEE=(BaEE,BbEE,BcEE)
+
+function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
+    s=size(Bb1)[1]
+    kvec=zeros(ComplexF64,dim*mult1,s)
+    Svec=zeros(ComplexF64,dim*mult1,s)
+    for j=1:s
+        for jj=1:s
+            Svec[:,j]=Svec[:,j]+Ba1[j,jj]*kvec[:,jj]
+        end
+        kvec[:,j]=dt1*fmult(t+Bc1[j]*dt1,y+Svec[:,j],sub(inttau,t+Bc1[j]*dt1-tau1),v1,mult1)
+    end
+    yn=y
+    for j=1:s
+        yn=yn+Bb1[j]*kvec[:,j]
+    end
+    return(yn)
+end
 
 ################## General functions ###############
 function it(A) #creating complex iteration array
@@ -194,3 +199,6 @@ function res2(solvar)
     end
     return(ret)
 end
+
+
+end #module end

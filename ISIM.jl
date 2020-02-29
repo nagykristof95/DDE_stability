@@ -1,18 +1,47 @@
+module SI
+
 using Printf
 using Statistics
 using LinearAlgebra
-using MDBM
 using Interpolations
-using Plots
-pyplot()
-using PyPlot
-pygui(true);
 using DelimitedFiles
 using Random
 using DifferentialEquations
+using Revise
+includet("system_definition.jl")
+includet("basic_functions.jl")
+using Main.SYS
+using Main.BAS
+
+export ISIM
+
+#USUAL PARAMETERS
+method="RK"
+abstol0=1e-8
+alg1= MethodOfSteps(BS3())
+gmax=5
+n=100
+mult=4
+BR=BAS.BRK4
+#END OF USUAL PARAMETERS
+
 rng = MersenneTwister(1234)
 
-abstol0=1e-8
+function bc_model(du,u,h,p,t) #DE.jl problem definiton
+    tau,AA,BB,mult1 = p
+    h( out1, p, t-tau)
+    dutemp=zeros(ComplexF64,mult1*dim)
+    for i1=0:dim:(mult1-1)*dim
+        for j=1:dim
+            for jj=1:dim
+            dutemp[j+i1] = dutemp[j+i1]+AA(t)[j,jj]*u[jj+i1]+BB(t)[j,jj]*out1[jj+i1]
+            end
+        end
+    end
+    for j=1:mult1*dim
+    du[j] = dutemp[j]
+    end
+end
 
 function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to tend
     alg=alg1
@@ -37,22 +66,7 @@ function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to t
     #return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,adaptive=true))
 end
 
-function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
-    s=size(Bb1)[1]
-    kvec=zeros(ComplexF64,dim*mult1,s)
-    Svec=zeros(ComplexF64,dim*mult1,s)
-    for j=1:s
-        for jj=1:s
-            Svec[:,j]=Svec[:,j]+Ba1[j,jj]*kvec[:,jj]
-        end
-        kvec[:,j]=dt1*fmult(t+Bc1[j]*dt1,y+Svec[:,j],sub(inttau,t+Bc1[j]*dt1-tau1),v1,mult1)
-    end
-    yn=y
-    for j=1:s
-        yn=yn+Bb1[j]*kvec[:,j]
-    end
-    return(yn)
-end
+
 
 ###################### ISIM #######################
 
@@ -104,7 +118,7 @@ function ISIM(v1)
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"
-                solarr=fsol(tau(v1),sol0[1:n+1,:],Ai(v1),Bi(v1),nmax*dt,mult,dt)
+                solarr=fsol(tau(v1),sol0[1:n+1,:],BAS.Ai(v1),BAS.Bi(v1),nmax*dt,mult,dt)
 
                 for tv=0:n-1
                     for j=1:mult*dim
@@ -136,15 +150,9 @@ function ISIM(v1)
         return(Hval0[:,2:end])
 end
 
-n=500
-mult=20
-gmax=20
 
-method="Julia"
-alg1=MethodOfSteps(RK4())
-@time ISIM(v)
+end #module
 
 
-BR=BRK4
-method="RK"
-@time evp=ISIM(v)
+#
+# SI.ISIM(v)

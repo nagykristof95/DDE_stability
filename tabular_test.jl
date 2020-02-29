@@ -33,6 +33,8 @@ function test(gmaxtest1,ntest1,multtest1,rep,point)
                     valtemp=@timed ISIM(v)
                 elseif meth=="LMS"
                     valtemp=@timed ISIM_LMS_RK(v)
+                elseif meth=="DE"
+                    valtemp=@timed ISIM_DE(v)
                 end
                     tabtemperr[j4]=normmax((valtemp[1])[:,end])
                     tabtempcomp[j4]=valtemp[2]
@@ -72,8 +74,12 @@ valrefB=real(valrefBn)+im*abs(imag.(valrefBn))
 #graph parameters
 gmaxtest=collect(20:1:20)
 ntest=vcat([10,30,50,70,100,150,250],collect(500:1000:8000))
+ntest=collect(100:200:1500)
 multtest=collect(20:1:20)
-rep1=3
+rep1=2
+
+
+
 
 ################################################################################
 #Runge-Kutta methods
@@ -321,3 +327,21 @@ quad1=test_lq(arrn1)
 open("temp.txt", "w") do io
             writedlm(io,imag(quad))
 end
+
+#DifferentialEquations.jl free step
+meth="DE"
+
+#point A
+v=vA
+alg1=MethodOfSteps(Euler())
+A_EE_DE=test(gmaxtest,ntest,multtest,rep1,valrefA)
+alg1=MethodOfSteps(BS3())
+A_BS3_DE=test(gmaxtest,ntest,multtest,rep1,valrefA)
+alg1=MethodOfSteps(Tsit5())
+A_T5_DE=test(gmaxtest,ntest,multtest,rep1,valrefA)
+
+Plots.plot(A_BS3free[:,3],hcat(A_BS3free[:,4],A_T5free[:,4]),xscale=:log10, yscale=:log10,title="Computation time A",label=["BS3 free" "T5 free"],markershapes= [:circle],xlabel = "number of steps",ylabel = "computation time")
+
+Plots.plot(A_BS3free[:,3],hcat(A_BS3free[:,5],A_T5free[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["BS3 free" "T5 free"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
+
+Plots.plot(hcat(A_BS3free[:,4],A_T5free[:,4]),hcat(A_BS3free[:,5],A_T5free[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["BS3 free" "T5 free"],markershapes= [:circle],xlabel = "calculation time",ylabel = "eigenvalue error")
