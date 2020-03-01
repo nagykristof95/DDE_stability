@@ -1,5 +1,6 @@
 module SI
 
+using TimerOutputs
 using Printf
 using Statistics
 using LinearAlgebra
@@ -13,25 +14,19 @@ includet("basic_functions.jl")
 using Main.SYS
 using Main.BAS
 
-export ISIM
+export ISIM, toISIM
 
 #USUAL PARAMETERS
-method="RK"
-abstol0=1e-8
-alg1= MethodOfSteps(BS3())
-gmax=5
-n=100
-mult=4
-BR=BAS.BRK4
 #END OF USUAL PARAMETERS
 
+toISIM = TimerOutput()
 rng = MersenneTwister(1234)
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
     h( out1, p, t-tau)
     dutemp=zeros(ComplexF64,mult1*dim)
-    for i1=0:dim:(mult1-1)*dim
+    @timeit toISIM "fmult_Julia" for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
             dutemp[j+i1] = dutemp[j+i1]+AA(t)[j,jj]*u[jj+i1]+BB(t)[j,jj]*out1[jj+i1]
@@ -43,13 +38,7 @@ function bc_model(du,u,h,p,t) #DE.jl problem definiton
     end
 end
 
-function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to tend
-    alg=alg1
-    #alg =  MethodOfSteps(BS3())
-    #alg=MethodOfSteps(Tsit5())
-    #alg =  MethodOfSteps(AutoTsit5(Rosenbrock23(autodiff=false)))
-    #alg=MethodOfSteps(RK4())
-    #alg=MethodOfSteps(Vern6())
+function fsol(tau,IF,AA,BB,tend,mult1,dt1,alg0) #DE.jl solution defintion from 0 to tend
     lags = [tau]
     p = (tau,AA,BB,mult1)
     interp=it(IF)
@@ -58,12 +47,8 @@ function fsol(tau,IF,AA,BB,tend,mult1,dt1) #DE.jl solution defintion from 0 to t
     tspan = (0.0,tend)
     u0 = sub(interp,0.0)
     prob = DDEProblem(bc_model,u0,h,tspan,p; constant_lags=lags)
-    x=solve(prob,alg,adaptive=false,dt=dt1,progress=true)
-    print(size(x.t)[1])
-    return(x)
-    #return(solve(prob,alg,abstol=1e-6,reltol=1e-3,saveat=collect(0.0:dt1:tend),adaptive=true))
-    #return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,saveat=collect(0.0:dt1:tend),adaptive=true))
-    #return(solve(prob,alg,abstol=abstol0,reltol=abstol0*1e3,adaptive=true))
+    return(solve(prob,alg0,adaptive=false,dt=dt1,progress=true))
+
 end
 
 
@@ -102,54 +87,58 @@ function iter(S1,V1)
        return((Sj,Hval))
 end
 
-function ISIM(v1)
-        dt=tau(v1)/(n-1) #timestep
+function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
+        if typeof(ALG) <: MethodOfSteps
+            method="Julia"
+        elseif typeof(ALG) <: Tuple
+            method="RK"
+        end
+        dt=tau(v1)/(nvar-1) #timestep
         nmax=floor(Int,round((T(v1)/dt)))
         kint=floor(Int,(T(v1)/tau(v1)))
-        nrest=nmax-kint*(n-1)
+        nrest=nmax-kint*(nvar-1)
         tvec=collect(-tau(v1):dt:(nmax*dt)+1e-10*dt)
-        sol00=randn!(rng, zeros(ComplexF64,n,mult*dim))
-        sol=zeros(ComplexF64,nmax,mult*dim)  #empty solution matrix
-        sol0m=zeros(ComplexF64,n,mult*dim)
-        sol0=zeros(ComplexF64,size(tvec)[1],mult*dim+1)
-        Hval0=zeros(ComplexF64,mult)
+        sol00=randn!(rng, zeros(ComplexF64,nvar,multvar*dim))
+        sol=zeros(ComplexF64,nmax,multvar*dim)  #empty solution matrix
+        sol0m=zeros(ComplexF64,nvar,multvar*dim)
+        sol0=zeros(ComplexF64,size(tvec)[1],multvar*dim+1)
+        Hval0=zeros(ComplexF64,multvar)
 
-        for g=1:gmax
+        for g=1:gmaxvar
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"
-                solarr=fsol(tau(v1),sol0[1:n+1,:],BAS.Ai(v1),BAS.Bi(v1),nmax*dt,mult,dt)
+                solarr=fsol(tau(v1),sol0[1:nvar+1,:],BAS.Ai(v1),BAS.Bi(v1),nmax*dt,multvar,dt,ALG)
 
-                for tv=0:n-1
-                    for j=1:mult*dim
+                for tv=0:nvar-1
+                    for j=1:multvar*dim
                         sol0m[tv+1,j]=solarr((nmax*dt-tau(v1))+tv*dt)[j]
                     end
                 end
 
             elseif method == "RK"
                 for k=1:kint
-                interp=it(sol0[1+(k-1)*(n-1):n+1+(k-1)*(n-1),:])
-                    for j=1:(n-1)
-                        sol0[n+j+(k-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+(j-1)+(k-1)*(n-1),1])+1e-14,interp,sol0[n+(j-1)+(k-1)*(n-1),2:end],dt,BR,v1,tau(v1),mult))
+                interp=it(sol0[1+(k-1)*(nvar-1):nvar+1+(k-1)*(nvar-1),:])
+                    for j=1:(nvar-1)
+                        sol0[nvar+j+(k-1)*(nvar-1),2:end]=transpose(butcher(real(sol0[nvar+(j-1)+(k-1)*(nvar-1),1])+1e-14,interp,sol0[nvar+(j-1)+(k-1)*(nvar-1),2:end],dt,ALG,v1,tau(v1),multvar))
                     end
                 end
                 if nrest>0
-                    interp=it(sol0[1+(kint-1)*(n-1):n+(kint-1)*(n-1),:])
+                    interp=it(sol0[1+(kint-1)*(nvar-1):nvar+(kint-1)*(nvar-1),:])
                     for j=1:nrest
-                        sol0[n+j+(kint-1)*(n-1),2:end]=transpose(butcher(real(sol0[n+j+(kint-1)*(n-1),1]),interp,sol0[n+j-1+(kint-1)*(n-1),2:end],dt,BR,v1,tau(v1),mult))
+                        sol0[nvar+j+(kint-1)*(nvar-1),2:end]=transpose(butcher(real(sol0[nvar+j+(kint-1)*(nvar-1),1]),interp,sol0[nvar+j-1+(kint-1)*(nvar-1),2:end],dt,ALG,v1,tau(v1),multvar))
                     end
                 end
-                sol0m=sol0[end-(n-1):end,2:end]
+                sol0m=sol0[end-(nvar-1):end,2:end]
 
             end
-            resit=iter(sol0[1:n,2:mult*dim+1],sol0m)
+            resit=iter(sol0[1:nvar,2:multvar*dim+1],sol0m)
             sol00=resit[1]
             Hval0=hcat(Hval0,resit[2])
         end
-        print(gmax)
+        print(gmaxvar)
         return(Hval0[:,2:end])
 end
-
 
 end #module
 

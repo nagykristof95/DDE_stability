@@ -1,5 +1,5 @@
 module BAS
-
+using TimerOutputs
 using Printf
 using Statistics
 using LinearAlgebra
@@ -14,10 +14,12 @@ using Revise
 includet("system_definition.jl")
 using Main.SYS
 
-export bc_model,it,sub, res1, res2, evplot,butcher,out1
+export bc_model,it,sub, res1, res2, evplot,butcher,out1,to
+
+to = TimerOutput()
 
 rng = MersenneTwister(1234)
-inttyp0=BSpline(Linear())
+inttyp0=BSpline(Quadratic(Line(OnGrid())))
 
 function f(t,y,ytau,v1) #right-hand side for TNS
     SYS.A(t,v1)*y+SYS.B(t,v1)*ytau
@@ -87,6 +89,11 @@ BbEE=[1.0]
 BcEE=[0.0]
 BEE=(BaEE,BbEE,BcEE)
 
+BLM1=([-1.0,0.0],[1.0,0.0])
+BLM2=([0.0,-1.0,0.0],[-1/2,3/2,0.0])
+BLM3=([0.0,0.0,-1.0,0.0],[5/12,-16/12,23/12,0.0])
+BLM4=([0.0,0.0,0.0,-1.0,0.0],[-9/24,37/24,-59/24,55/24,0.0])
+
 function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
     s=size(Bb1)[1]
     kvec=zeros(ComplexF64,dim*mult1,s)
@@ -95,7 +102,7 @@ function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butche
         for jj=1:s
             Svec[:,j]=Svec[:,j]+Ba1[j,jj]*kvec[:,jj]
         end
-        kvec[:,j]=dt1*fmult(t+Bc1[j]*dt1,y+Svec[:,j],sub(inttau,t+Bc1[j]*dt1-tau1),v1,mult1)
+@timeit to "fmult" kvec[:,j]=dt1*fmult(t+Bc1[j]*dt1,y+Svec[:,j],sub(inttau,t+Bc1[j]*dt1-tau1),v1,mult1)
     end
     yn=y
     for j=1:s

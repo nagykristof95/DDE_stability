@@ -1,34 +1,36 @@
+module SILMS
+
+using TimerOutputs
 using Printf
 using Statistics
 using LinearAlgebra
-using MDBM
 using Interpolations
-using Plots
-pyplot()
-using PyPlot
-pygui(true);
 using DelimitedFiles
 using Random
 using DifferentialEquations
+using Revise
+includet("system_definition.jl")
+includet("basic_functions.jl")
+using Main.SYS
+using Main.BAS
+
+export ISIM_LMS, toSILMS
+
 rng = MersenneTwister(1234)
 
-BLM1=([-1.0,0.0],[1.0,0.0])
-BLM2=([0.0,-1.0,0.0],[-1/2,3/2,0.0])
-BLM3=([0.0,0.0,-1.0,0.0],[5/12,-16/12,23/12,0.0])
-BLM4=([0.0,0.0,0.0,-1.0,0.0],[-9/24,37/24,-59/24,55/24,0.0])
+toSILMS = TimerOutput()
 
-
-function LM_init(soltable,jstart,dt0,BLM00,v1,mult0)
+function LM_init(soltable,jstart,dt0,BLM00,v1,mult0,n0)
     (aco,bco)=BLM00
     s=size(aco)[1]-1
     fmultarr=zeros(ComplexF64,(s-1),mult0*dim)
     for j=1:(s-1)
-        fmultarr[j,:]=fmult(soltable[(jstart-s)+j,1],soltable[(jstart-s)+j,2:end],soltable[(jstart-s)+j-(n-1),2:end],v1,mult0)
+    @timeit toSILMS "fmult_LMS" fmultarr[j,:]=BAS.fmult(soltable[(jstart-s)+j,1],soltable[(jstart-s)+j,2:end],soltable[(jstart-s)+j-(n0-1),2:end],v1,mult0)
     end
     return(fmultarr)
 end
 
-function LM(soltable,jstart,dt0,BLM00,v1,mult0,fmultarr0)
+function LM(soltable,jstart,dt0,BLM00,v1,mult0,fmultarr0,n0)
     (aco,bco)=BLM00
     s=size(aco)[1]-1
     Yy=zeros(ComplexF64,mult0*dim)
@@ -39,7 +41,7 @@ function LM(soltable,jstart,dt0,BLM00,v1,mult0,fmultarr0)
     for j=1:s-1
         Yf=Yf+bco[j]*fmultarr0[(jstart-s)+j,:]
     end
-    fnext=fmult(soltable[jstart,1],soltable[jstart,2:end],soltable[jstart-(n-1),2:end],v1,mult0)
+    @timeit toSILMS "fmult_LMS" fnext=BAS.fmult(soltable[jstart,1],soltable[jstart,2:end],soltable[jstart-(n0-1),2:end],v1,mult0)
     Yf=Yf+bco[s]*fnext
     return(-Yy+dt0*Yf,fnext)
 end
@@ -86,41 +88,36 @@ end
 
 ###################### ISIM with LSM #######################
 
-function ISIM_LSM(v1)
+function ISIM_LMS(v1,(nvar,gmaxvar,multvar,BLM))
         s=size(BLM[1])[1]-1
-        dt=tau(v1)/(n-1) #timestep
+        dt=tau(v1)/(nvar-1) #timestep
         nmax=floor(Int,round((T(v1)/dt)))
         tvec=collect(-((s-1)*dt+tau(v1)):dt:(nmax*dt)+1e-10*dt)
-        sol00=randn!(rng, zeros(ComplexF64,n+(s-1),mult*dim))
-        sol=zeros(ComplexF64,nmax,mult*dim)  #empty solution matrix
-        sol0m=zeros(ComplexF64,n+(s-1),mult*dim)
-        sol0=zeros(ComplexF64,size(tvec)[1],mult*dim+1)
-        Hval0=zeros(ComplexF64,mult)
+        sol00=randn!(rng, zeros(ComplexF64,nvar+(s-1),multvar*dim))
+        sol=zeros(ComplexF64,nmax,multvar*dim)  #empty solution matrix
+        sol0m=zeros(ComplexF64,nvar+(s-1),multvar*dim)
+        sol0=zeros(ComplexF64,size(tvec)[1],multvar*dim+1)
+        Hval0=zeros(ComplexF64,multvar)
 
-        for g=1:gmax
+        for g=1:gmaxvar
             sol0=hcat(tvec,vcat(sol00,sol))
 
-            fmemory=zeros(ComplexF64,n+nmax+(s-1),mult*dim)
-            fmemory[n+1+(s-1)-(s-1):n+1+(s-1)-1,:]=LM_init(sol0,n+(s-1),dt,BLM,v1,mult)
+            fmemory=zeros(ComplexF64,nvar+nmax+(s-1),multvar*dim)
+            fmemory[nvar+1+(s-1)-(s-1):nvar+1+(s-1)-1,:]=LM_init(sol0,nvar+(s-1),dt,BLM,v1,multvar,nvar)
 
             for j=0:nmax-1
-                Y=LM(sol0,j+n+(s-1),dt,BLM,v1,mult,fmemory)
+                Y=LM(sol0,j+nvar+(s-1),dt,BLM,v1,multvar,fmemory,nvar)
 
-                sol0[j+n+1+(s-1),2:end]=Y[1]
-                fmemory[j+n+(s-1),:]=Y[2]
+                sol0[j+nvar+1+(s-1),2:end]=Y[1]
+                fmemory[j+nvar+(s-1),:]=Y[2]
             end
-            sol0m=sol0[end-(n+s-2):end,2:end]
-            resit=iter_LSM(sol0[1:n+(s-1),2:end],sol0m,s)
+            sol0m=sol0[end-(nvar+s-2):end,2:end]
+            resit=iter_LSM(sol0[1:nvar+(s-1),2:end],sol0m,s)
             sol00=resit[1]
             Hval0=hcat(Hval0,resit[2])
         end
-        print(gmax)
+        print(gmaxvar)
         return(Hval0[:,2:end])
 end
 
-n=50
-mult=4
-gmax=5
-BLM=BLM2
-
-sajt=ISIM_LSM(v)
+end #module end
