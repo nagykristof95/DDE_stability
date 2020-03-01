@@ -22,6 +22,12 @@ export ISIM, toISIM
 toISIM = TimerOutput()
 rng = MersenneTwister(1234)
 
+setprecision(32)
+
+BigFloat(2.6+3.0)
+
+@biginterval BigFloat(2.6)
+
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
     h( out1, p, t-tau)
