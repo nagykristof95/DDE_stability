@@ -4,6 +4,7 @@ using TimerOutputs
 using Printf
 using Statistics
 using LinearAlgebra
+using GenericSchur
 using Interpolations
 using DelimitedFiles
 using Random
@@ -21,17 +22,13 @@ export ISIM, toISIM
 
 toISIM = TimerOutput()
 rng = MersenneTwister(1234)
-
-setprecision(32)
-
-BigFloat(2.6+3.0)
-
-@biginterval BigFloat(2.6)
+setprecision(BigFloat,128)
+setrounding(BigFloat, RoundUp)
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
     h( out1, p, t-tau)
-    dutemp=zeros(ComplexF64,mult1*dim)
+    dutemp=zeros(Complex{BigFloat},mult1*dim)
     @timeit toISIM "fmult_Julia" for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -48,7 +45,7 @@ function fsol(tau,IF,AA,BB,tend,mult1,dt1,alg0) #DE.jl solution defintion from 0
     lags = [tau]
     p = (tau,AA,BB,mult1)
     interp=it(IF)
-    global out1=zeros(ComplexF64,dim*mult1)  #define a cache variable
+    global out1=zeros(Complex{BigFloat},dim*mult1)  #define a cache variable
     h(out1,p,t)=(out1.=sub(interp,t))
     tspan = (0.0,tend)
     u0 = sub(interp,0.0)
@@ -64,8 +61,8 @@ end
 function iter(S1,V1)
     n1=size(S1)[1]
     mult1=trunc(Int,size(S1)[2]/dim)
-    S=zeros(ComplexF64,n1*dim,mult1)
-    V=zeros(ComplexF64,n1*dim,mult1)
+    S=zeros(Complex{BigFloat},n1*dim,mult1)
+    V=zeros(Complex{BigFloat},n1*dim,mult1)
     for p=1:n1
            for s=1:mult1
                for q=1:dim
@@ -75,14 +72,14 @@ function iter(S1,V1)
            end
        end
        H=pinv(S)*V #pseudo-inverse calculation
-       eigH=eigen(H)
-       Hval=eigH.values #eigenvalue calculation
-       Vj0=V*eigH.vectors #calculating of new set of eigenvectors
-       Vj=zeros(ComplexF64,n1*dim,mult1)
+
+       Hval=schur(H).values #eigenvalue calculation
+       Vj0=V*(GenericSchur.eigvecs(H)) #calculating of new set of eigenvectors
+       Vj=zeros(Complex{BigFloat},n1*dim,mult1)
        for j=1:mult1
            Vj[:,j]=normalize(Vj0[:,j])
        end
-       Sj=zeros(ComplexF64,n1,mult1*dim) #creating new initial solution array
+       Sj=zeros(Complex{BigFloat},n1,mult1*dim) #creating new initial solution array
        for p=1:n1
            for s=1:mult1
                for q=1:dim
@@ -104,13 +101,14 @@ function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
         kint=floor(Int,(T(v1)/tau(v1)))
         nrest=nmax-kint*(nvar-1)
         tvec=collect(-tau(v1):dt:(nmax*dt)+1e-10*dt)
-        sol00=randn!(rng, zeros(ComplexF64,nvar,multvar*dim))
-        sol=zeros(ComplexF64,nmax,multvar*dim)  #empty solution matrix
-        sol0m=zeros(ComplexF64,nvar,multvar*dim)
-        sol0=zeros(ComplexF64,size(tvec)[1],multvar*dim+1)
-        Hval0=zeros(ComplexF64,multvar)
+        sol00=Complex{BigFloat}.(randn!(rng, zeros(ComplexF64,nvar,multvar*dim)))
+        sol=zeros(Complex{BigFloat},nmax,multvar*dim)  #empty solution matrix
+        sol0m=zeros(Complex{BigFloat},nvar,multvar*dim)
+        sol0=zeros(Complex{BigFloat},size(tvec)[1],multvar*dim+1)
+        Hval0=zeros(Complex{BigFloat},multvar)
 
         for g=1:gmaxvar
+            println(g)
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"

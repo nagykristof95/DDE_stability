@@ -1,6 +1,7 @@
 using Printf
 using Statistics
 using LinearAlgebra
+using GenericSchur
 using Interpolations
 using DelimitedFiles
 using Random
@@ -18,22 +19,20 @@ using Main.SIDE
 using Main.SILMS
 using Main.SI
 
-omega=1; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;
+omega=1.0; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;
 v=[omega kappa delta epsilon b tau0]
-
-
 
 #USUAL PARAMETERS
 abstol0=1e-8
 ALG0=MethodOfSteps(RK4())
-gmax=20
+gmax=6
 n=500
-mult=4
+mult=8
 #END OF USUAL PARAMETERS
 
 ISIM_DE(v,(n,gmax,mult,ALG0))
 
-ISIM_LMS(v,(n,gmax,mult,BAS.BLM3))
+ISIM_LMS(v,(n,gmax,mult,BAS.BLM4))
 
 ISIM(v,(n,gmax,mult,BAS.BRK4))
 
@@ -48,7 +47,10 @@ function test(gmaxtest1,ntest1,multtest1,rep,valref)
     tabtempcomp=zeros(Float64,rep)
     tabtemperr=zeros(ComplexF64,rep)
     tabtempeval=zeros(Float64,rep)
-
+    reset_timer!(BAS.to)
+    reset_timer!(SI.toISIM)
+    reset_timer!(SILMS.toSILMS)
+    reset_timer!(SIDE.toSIDE)
     for j1=1:multtestn
         for j2=1:gmaxn
             for j3=1:ntestn
@@ -81,7 +83,7 @@ function test(gmaxtest1,ntest1,multtest1,rep,valref)
                 tableerr=real(abs(mean(vecttempabs-valref*ones(ComplexF64,rep,1))))
                 tablecomp=mean(tabtempcomp)
                 tableeval=mean(tabtempeval)
-                table[(j1-1)*ntestn*gmaxn+(j2-1)*ntestn+j3,:]=[convert(Float64,multtest1[j1]) convert(Float64,gmaxtest1[j2]) convert(Float64,ntest1[j3]) tablecomp tableerr tabtempeval]
+                table[(j1-1)*ntestn*gmaxn+(j2-1)*ntestn+j3,:]=[convert(Float64,multtest1[j1]) convert(Float64,gmaxtest1[j2]) convert(Float64,ntest1[j3]) tablecomp tableerr tableeval]
             end
         end
     end
@@ -90,8 +92,9 @@ end
 
 #graph parameters
 gmaxtest=collect(20:1:20)
-ntest=vcat([10,30,50,70,100,150,250],collect(500:1000:8000))
+ntest=vcat([10,30,50,70,100,150,250],collect(500:1000:4000))
 ntest=collect(100:200:1000)
+ntest=collect(20:15:95)
 multtest=collect(20:1:20)
 rep1=1
 
@@ -99,7 +102,7 @@ rep1=1
 ALG0=MethodOfSteps(RK4())
 gmax=20
 mult=20
-n=20000
+n=100000
 
 #point A
 omega=1; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;
@@ -128,28 +131,11 @@ A_RK3=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=BAS.BRK2
 A_RK2=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=BAS.BEE
-A_EE=test(gmaxtest,ntest,multtest,rep1,valrefA)
+A_RK1=test(gmaxtest,ntest,multtest,rep1,valrefA)
 
-Plots.plot(A_RK4[:,3],hcat(A_RK4[:,5],A_RK3[:,5],A_RK2[:,5],A_EE[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["RK4" "RK3" "RK2" "EE"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
+Plots.plot(A_RK4[:,3],hcat(A_RK4[:,5],A_RK3[:,5],A_RK2[:,5],A_RK1[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["RK4" "RK3" "RK2" "RK1"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
+Plots.plot(hcat(A_RK4[:,6],A_RK3[:,6],A_RK2[:,6],A_RK1[:,6]),hcat(A_RK4[:,5],A_RK3[:,5],A_RK2[:,5],A_RK1[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["RK4" "RK3" "RK2" "RK1"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
 
-Plots.plot(hcat(A_RK4[:,6],A_RK3[:,6],A_RK2[:,6],A_EE[:,6]),hcat(A_RK4[:,5],A_RK3[:,5],A_RK2[:,5],A_EE[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["RK4" "RK3" "RK2" "EE"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
-
-#point B
-v=vB
-ALG0=BAS.BRK4
-B_RK4=test(gmaxtest,ntest,multtest,rep1,valrefB)
-ALG0=BAS.BRK3
-B_RK3=test(gmaxtest,ntest,multtest,rep1,valrefB)
-ALG0=BAS.BRK2
-B_RK2=test(gmaxtest,ntest,multtest,rep1,valrefB)
-ALG0=BAS.BEE
-B_EE=test(gmaxtest,ntest,multtest,rep1,valrefB)
-
-Plots.plot(B_RK4[:,3],hcat(B_RK4[:,5],B_RK3[:,5],B_RK2[:,5],B_EE[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error B",label=["RK4" "RK3" "RK2" "RK1"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
-
-Plots.plot(hcat(B_RK4[:,6],B_RK3[:,6],B_RK2[:,6],B_EE[:,6]),hcat(B_RK4[:,5],B_RK3[:,5],B_RK2[:,5],B_EE[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods B",label=["RK4" "RK3" "RK2" "RK1"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
-
-#Linear-Multistep methods
 
 meth="LMS"
 #point A
@@ -164,52 +150,24 @@ ALG0=BAS.BLM1
 A_LM1=test(gmaxtest,ntest,multtest,rep1,valrefA)
 
 Plots.plot(A_LM4[:,3],hcat(A_LM4[:,5],A_LM3[:,5],A_LM2[:,5],A_LM1[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["LM4" "LM3" "LM2" "LM1"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
-
-Plots.plot(hcat(A_LM4[:,6],A_LM3[:,6],A_LM2[:,6],A_LM1[:,6]),hcat(A_LM4[:,5],A_LM3[:,5],A_LM2[:,5],A_LM1[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["LM4" "LM3" "LM2" "LM1"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
-
-
-#point B
-v=vB
-ALG0=BAS.BLM4
-A_LM4=test(gmaxtest,ntest,multtest,rep1,valrefB)
-ALG0=BAS.BLM3
-A_LM3=test(gmaxtest,ntest,multtest,rep1,valrefB)
-ALG0=BAS.BLM2
-A_LM2=test(gmaxtest,ntest,multtest,rep1,valrefB)
-ALG0=BAS.BLM1
-A_LM1=test(gmaxtest,ntest,multtest,rep1,valrefB)
-
-Plots.plot(B_LM4[:,3],hcat(B_LM4[:,5],B_LM3[:,5],B_LM2[:,5],B_LM1[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error B",label=["LM4" "LM3" "LM2" "LM1"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
-
-Plots.plot(hcat(B_LM4[:,6],B_LM3[:,6],B_LM2[:,6],B_LM1[:,6]),hcat(B_LM4[:,5],B_LM3[:,5],B_LM2[:,5],B_LM1[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods B",label=["LM4" "LM3" "LM2" "LM1"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
+Plots.plot(hcat(A_LM4[:,6],A_LM3[:,6],A_LM2_J[:,6],A_LM1[:,6]),hcat(A_LM4[:,5],A_LM3[:,5],A_LM2[:,5],A_LM1[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["LM4" "LM3" "LM2" "LM1"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
 
 
-#DifferentialEquations.jl limited step
+#DifferentialEquations.jl limited step + internal interpolation
 meth="DE"
 
 #point A
 v=vA
 ALG0=MethodOfSteps(Euler())
-A_EE_J=test(gmaxtest,ntest,multtest,rep1,valrefA)
+A_EE_J_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=MethodOfSteps(BS3())
-A_BS3=test(gmaxtest,ntest,multtest,rep1,valrefA)
+A_BS3_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=MethodOfSteps(RK4())
-A_RK4_J=test(gmaxtest,ntest,multtest,rep1,valrefA)
+A_RK4_J_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=MethodOfSteps(Tsit5())
-A_T5=test(gmaxtest,ntest,multtest,rep1,valrefA)
+A_T5_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=MethodOfSteps(Vern6())
-A_V6=test(gmaxtest,ntest,multtest,rep1,valrefA)
-
+A_V6_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 
 Plots.plot(A_EE_J[:,3],hcat(A_EE_J[:,5],A_BS3[:,5],A_RK4_J[:,5],A_T5[:,5],A_V6[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["EE DE" "BS3 DE" "RK4 DE" "T5 DE" "V6 DE"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
-
 Plots.plot(hcat(A_EE_J[:,6],A_BS3[:,6],A_RK4_J[:,6],A_T5[:,6],A_V6[:,6]),hcat(A_EE_J[:,5],A_BS3[:,5],A_RK4_J[:,5],A_T5[:,5],A_V6[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["EE DE" "BS3 DE" "RK4 DE" "T5 DE" "V6 DE"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
-
-
-#RK3 & LM4 & BS3 & T5 compare
-
-Plots.plot(A_RK3[:,3],hcat(A_RK3[:,4],A_LM4[:,4],A_BS3[:,4],A_T5[:,4]),xscale=:log10, yscale=:log10,title="Computation time A",label=["RK3" "LM4" "BS3" "T5"],markershapes= [:circle],xlabel = "number of steps",ylabel = "computation time")
-
-Plots.plot(A_RK3[:,3],hcat(A_RK3[:,5],A_LM4[:,5],A_BS3[:,5],A_T5[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["RK3" "LM4" "BS3" "T5"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
-
-Plots.plot(hcat(A_RK3[:,4],A_LM4[:,4],A_BS3[:,4],A_T5[:,4]),hcat(A_RK3[:,5],A_LM4[:,5],A_BS3[:,5],A_T5[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["RK3" "LM4" "BS3" "T5"],markershapes= [:circle],xlabel = "calculation time",ylabel = "eigenvalue error")

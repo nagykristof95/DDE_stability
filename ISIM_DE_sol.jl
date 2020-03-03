@@ -4,6 +4,7 @@ using TimerOutputs
 using Printf
 using Statistics
 using LinearAlgebra
+using GenericSchur
 using Interpolations
 using DelimitedFiles
 using Random
@@ -23,11 +24,13 @@ abstol0=1e-8
 #END OF USUAL PARAMETERS
 
 rng = MersenneTwister(1234)
+setprecision(BigFloat,128)
+setrounding(BigFloat, RoundUp)
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
     h( out1, p, t-tau)
-    dutemp=zeros(ComplexF64,mult1*dim)
+    dutemp=zeros(Complex{BigFloat},mult1*dim)
     @timeit toSIDE "fmult_DE" for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -43,8 +46,8 @@ end
 function iter_DE(S1,V1)
     n1=size(S1)[1]
     mult1=trunc(Int,size(S1)[2]/dim)
-    S=zeros(ComplexF64,n1*dim,mult1)
-    V=zeros(ComplexF64,n1*dim,mult1)
+    S=zeros(Complex{BigFloat},n1*dim,mult1)
+    V=zeros(Complex{BigFloat},n1*dim,mult1)
     for p=1:n1
            for s=1:mult1
                for q=1:dim
@@ -64,30 +67,30 @@ function subs(solarr::ODESolution,t)
 end
 
 function ISIM_DE_first(v1,(nvar,gmaxvar,multvar,alg1var))
-    dtn=tau(v1)/(nvar-1) #timestep
-    nmax=floor(Int,round((T(v1)/dtn)))
+    dtn=BigFloat(BigFloat(tau(v1))/(nvar-1)) #timestep
+    nmax=floor(Int,round((BigFloat(T(v1))/dtn)))
     kint=floor(Int,(T(v1)/tau(v1)))
     nrest=nmax-kint*(nvar-1)
-    tvec=collect(-tau(v1):dtn:(nmax*dtn)+1e-10*dtn)
-    sol00=randn!(rng, zeros(ComplexF64,nvar,multvar*dim))
-    sol=zeros(ComplexF64,nmax,multvar*dim)  #empty solution matrix
+    tvec=Complex{BigFloat}.(collect(BigFloat(-tau(v1)):dtn:(nmax*dtn+0.1*dtn)))
+    sol00=Complex{BigFloat}.(randn!(rng, zeros(ComplexF64,nvar,multvar*dim)))
+    sol=zeros(Complex{BigFloat},nmax,multvar*dim)  #empty solution matrix
 
     sol0=hcat(tvec,vcat(sol00,sol))
     int=it(sol0)
 
-    Hval0=zeros(ComplexF64,multvar)
+    Hval0=zeros(Complex{BigFloat},multvar)
 
-    alg =  alg1var
+    algX =  alg1var
     lags = [tau(v1)]
     p = (tau(v1),BAS.Ai(v1),BAS.Bi(v1),multvar)
-    global out1=zeros(ComplexF64,dim*multvar)
+    global out1=zeros(Complex{BigFloat},dim*multvar)
     h(out1,p,t)=(out1.=sub(int,t))
     u0 =sub(int,0)
     tspan = (0.0,T(v1))
     prob = DDEProblem(bc_model,u0,h,tspan,p; constant_lags=lags)
-    sol1=solve(prob,alg,adaptive=false,dt=dtn,progress=true)
+    sol1=solve(prob,algX,adaptive=false,dt=dtn,progress=true)
     S=sol0[1:nvar,2:end]
-    V=transpose(subs(sol1,collect(T(v1)-tau(v1):dtn:T(v1))))
+    V=transpose(subs(sol1,collect(T(v1)-tau(v1):dtn:T(v1)+0.1*dtn)))
     IT=iter_DE(S,V)
     Hval=IT[1]
     Hval0=hcat(Hval0,Hval)
@@ -104,17 +107,17 @@ function ISIM_DE_loop(v1,initarr,(nvar,gmaxvar,multvar,alg1var))
         p = (tau(v1),BAS.Ai(v1),BAS.Bi(v1),multvar)
         tspan = (0.0,T(v1))
         lags = [tau(v1)]
-        alg=alg1var
+        algX = alg1var
     for g=1:gmaxvar-1
-        global out1=zeros(ComplexF64,dim*multvar)
+        global out1=zeros(Complex{BigFloat},dim*multvar)
         h(out1,p,t)=(out1.=res2(res1(sol11(t+T(v1)))*Hvec))
         u0 = res2(res1(sol11(T(v1)))*Hvec)
 
         prob = DDEProblem(bc_model,u0,h,tspan,p; constant_lags=lags)
-        sol2=solve(prob,alg,adaptive=false,dt=dtn,progress=true)
+        sol2=solve(prob,algX,adaptive=false,dt=dtn,progress=true)
 
-        S=zeros(ComplexF64,nvar,multvar*dim)
-        V=zeros(ComplexF64,nvar,multvar*dim)
+        S=zeros(Complex{BigFloat},nvar,multvar*dim)
+        V=zeros(Complex{BigFloat},nvar,multvar*dim)
         for j=1:nvar
             S[j,:]=res1(sol11((j-1)*dtn+(T(v1)-tau(v1))))*Hvec
             V[j,:]=res1(sol2((j-1)*dtn+(T(v1)-tau(v1))))

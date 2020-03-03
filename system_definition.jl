@@ -86,7 +86,8 @@ export T, tau, dim, A, B
 ###################################################################################
 
 ################### SYSTEM DEFINITION ###################
-
+setprecision(BigFloat,128)
+setrounding(BigFloat, RoundUp)
 dim=2 #DoF of the system (after Cauchy transcription)
 
 #omega=1; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;

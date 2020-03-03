@@ -16,17 +16,19 @@ using Main.SYS
 
 export bc_model,it,sub, res1, res2, evplot,butcher,out1,to
 
+setprecision(BigFloat,128)
+setrounding(BigFloat, RoundDown)
 to = TimerOutput()
 
 rng = MersenneTwister(1234)
-inttyp0=BSpline(Quadratic(Line(OnGrid())))
+inttyp0=BSpline(Linear())
 
 function f(t,y,ytau,v1) #right-hand side for TNS
     SYS.A(t,v1)*y+SYS.B(t,v1)*ytau
 end
 
 function Amult(t,v1,mult1)
-    Atemp=zeros(ComplexF64,mult1*dim,mult1*dim)
+    Atemp=zeros(Complex{BigFloat},mult1*dim,mult1*dim)
     for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -38,7 +40,7 @@ function Amult(t,v1,mult1)
 end
 
 function Bmult(t,v1,mult1)
-    Btemp=zeros(ComplexF64,mult1*dim,mult1*dim)
+    Btemp=zeros(Complex{BigFloat},mult1*dim,mult1*dim)
     for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -96,8 +98,8 @@ BLM4=([0.0,0.0,0.0,-1.0,0.0],[-9/24,37/24,-59/24,55/24,0.0])
 
 function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
     s=size(Bb1)[1]
-    kvec=zeros(ComplexF64,dim*mult1,s)
-    Svec=zeros(ComplexF64,dim*mult1,s)
+    kvec=zeros(Complex{BigFloat},dim*mult1,s)
+    Svec=zeros(Complex{BigFloat},dim*mult1,s)
     for j=1:s
         for jj=1:s
             Svec[:,j]=Svec[:,j]+Ba1[j,jj]*kvec[:,jj]
@@ -119,8 +121,8 @@ function it(A) #creating complex iteration array
     #inttyp=BSpline(Cubic(Line(OnGrid())))
     #inttyp=BSpline(Linear())
     matrdim=size(A,2)-1
-    step=abs(real(A[end,1]-A[1,1]))/(size(A,1)-1)
-    scaleitp=real(A[1,1]):step:real(A[end,1])
+    step=BigFloat(abs(real(A[end,1]-A[1,1]))/(size(A,1)-1))
+    scaleitp=real(A[1,1]):step:real(A[end,1])+10e-10*step
     ARe=real(A); AIm=imag(A);
     imRe=[scale(interpolate(ARe[:,2],inttyp),scaleitp)]
     for j = 3:matrdim+1
@@ -138,7 +140,7 @@ end
 
 function sub(it,t) #substitution in interpolating function
     subdim=size(it,1)
-    out=zeros(ComplexF64,subdim)
+    out=zeros(Complex{BigFloat},subdim)
     for j = 1:subdim
         out[j]=it[j,1](t)+it[j,2](t)*im
     end
@@ -190,7 +192,7 @@ end
 function res1(solvar)
     s=size(solvar)[1]
     multvar=convert(Int,s/dim)
-    ret=zeros(ComplexF64,dim,multvar)
+    ret=zeros(Complex{BigFloat},dim,multvar)
     for j=1:multvar
         ret[:,j]=solvar[1+(j-1)*dim:j*dim]
     end
@@ -200,7 +202,7 @@ end
 function res2(solvar)
     s=size(solvar)[2]
     multvar=convert(Int,s)
-    ret=zeros(ComplexF64,dim*multvar)
+    ret=zeros(Complex{BigFloat},dim*multvar)
     for j=1:multvar
         ret[1+(j-1)*dim:j*dim]=solvar[:,j]
     end
