@@ -10,28 +10,62 @@ pygui(true);
 using DelimitedFiles
 using Random
 using DifferentialEquations
+using TimerOutputs
 rng = MersenneTwister(1234)
 
-Ac=3.0
-t_end=1.0
-C=1.0
+setprecision(BigFloat,128)
+setrounding(BigFloat, RoundUp)
+Ac=BigFloat(3.0)
+t_end=BigFloat(1.0)
+C=BigFloat(1.0)
+to=TimerOutput()
 
 function ft(t,y)
-    Ac*y
+    @timeit to "f" Ac*y
 end
 
 function y_ex(t,Ac0,C0)
-    [C0*exp(Ac0*t)]
+     [C0*exp(Ac0*t)]
 end
 
 f_t(u,p,t) = ft(t,u)
 
 dimt=1
 
+BaRK5=[0.0 0 0 0 0 0; 0.16666666666666666667 0 0 0 0 0; -0.21627570527696895373 0.54960903861030228706 0 0 0 0; 0.08482881411262012706 0.04162653285051884260 0.37354465303686103035 0 0 0; -0.08651098424575942561 0.37955562705964599292 0.01753570971622337002 0.35608631413655672933 0 0; -0.12499755969423778621 0.72695084642093284094 -0.38363171852137430626 0.29492374551818501854 0.32008801960982756632 0]
+BbRK5=[0.07892564703041163884, 0.15537176484794180580, 0.08925647030411638840, 0.51074352969588361160, -0.30537176484794180580, 0.47107435296958836116]
+BcRK5=[0.0, 1/6, 1/3, 1/2, 2/3, 5/6]
+BRK5=(BaRK5,BbRK5,BcRK5)
+
+BaRK4=[0 0 0 0; 0.5 0 0 0; 0 0.5 0 0; 0 0 1 0]
+BbRK4=[1/6, 1/3, 1/3, 1/6]
+BcRK4=[0, 0.5, 0.5, 1]
+BRK4=(BaRK4,BbRK4,BcRK4)
+
+BaRK3=[0 0 0; 0.5 0 0;-1.0 2.0 0;]
+BbRK3=[1/6, 2/3, 1/6]
+BcRK3=[0, 0.5, 1.0]
+BRK3=(BaRK3,BbRK3,BcRK3)
+
+BaRK2=[0 0; 0.5 0]
+BbRK2=[0, 1.0]
+BcRK2=[0, 0.5]
+BRK2=(BaRK2,BbRK2,BcRK2)
+
+BaEE=[0.0]
+BbEE=[1.0]
+BcEE=[0.0]
+BEE=(BaEE,BbEE,BcEE)
+
+BLM1=([-1.0,0.0],[1.0,0.0])
+BLM2=([0.0,-1.0,0.0],[-1/2,3/2,0.0])
+BLM3=([0.0,0.0,-1.0,0.0],[5/12,-16/12,23/12,0.0])
+BLM4=([0.0,0.0,0.0,-1.0,0.0],[-9/24,37/24,-59/24,55/24,0.0])
+
 function value(t_1,algorithm,n0)
-    dt1=t_1/(n0-1)
-    tvec=collect(0:dt1:t_1)
-    soly=zeros(Float64,n0,dimt)
+    dt1=BigFloat(t_1/(n0-1))
+    tvec=collect(0:dt1:t_1+1e-10*dt1)
+    soly=zeros(BigFloat,n0,dimt)
     sol=hcat(tvec,soly)
     sol[1,2:end]=[C]
     if algorithm=="RK4" || algorithm=="RK3" || algorithm=="RK2" || algorithm=="RK1"
@@ -94,8 +128,8 @@ end
 
 function butcher_t(t,y,dt1,(Ba1,Bb1,Bc1)) #one step by Butcher table (explicit only!)
     s=size(Bb1)[1]
-    kvec=zeros(Float64,dimt,s)
-    Svec=zeros(Float64,dimt,s)
+    kvec=zeros(BigFloat,dimt,s)
+    Svec=zeros(BigFloat,dimt,s)
     for j=1:s
         for jj=1:s
             Svec[:,j]=Svec[:,j]+Ba1[j,jj]*kvec[:,jj]
@@ -112,8 +146,8 @@ end
 function LM_RK_t(soltable,jstart,dt0,BLM00,fmultarr0)
     (aco,bco)=BLM00
     s=size(aco)[1]-1
-    Yy=zeros(Float64,dimt)
-    Yf=zeros(Float64,dimt)
+    Yy=zeros(BigFloat,dimt)
+    Yf=zeros(BigFloat,dimt)
     for j=1:s
         Yy=Yy+aco[j]*soltable[(jstart-s)+j,2:end]
     end
@@ -127,22 +161,27 @@ end
 
 arr_n0=vcat([10,30,50,70],collect(100:500:10000))
 
-rep=10
+rep=5
 function test_t(arr_n00,method0,rep0)
     valexact0=y_ex(t_end,Ac,C)
     ns=size(arr_n00)[1]
-    table=zeros(Float64,ns,3)
-    table_rep=zeros(Float64,rep0,2)
+    table=zeros(BigFloat,ns,4)
+    table_rep=zeros(BigFloat,rep0,3)
+    reset_timer!(to)
         for jj=1:ns
             for j=1:rep0
             table[jj,1]=arr_n0[jj]
             n00=arr_n0[jj]
             valtemp=@timed abs((value(t_end,method0,n00)-valexact0)[1])
+            tempeval=TimerOutputs.ncalls(to["f"])
+            reset_timer!(to)
             table_rep[j,1]=valtemp[1]
             table_rep[j,2]=valtemp[2]
+            table_rep[j,3]=tempeval
             end
             table[jj,2]=mean(table_rep[:,1])
             table[jj,3]=mean(table_rep[:,2])
+            table[jj,4]=mean(table_rep[:,3])
         end
     return(table)
 end

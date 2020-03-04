@@ -108,7 +108,6 @@ function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
         Hval0=zeros(Complex{BigFloat},multvar)
 
         for g=1:gmaxvar
-            println(g)
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"

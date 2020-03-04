@@ -169,5 +169,5 @@ A_T5_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 ALG0=MethodOfSteps(Vern6())
 A_V6_=test(gmaxtest,ntest,multtest,rep1,valrefA)
 
-Plots.plot(A_EE_J[:,3],hcat(A_EE_J[:,5],A_BS3[:,5],A_RK4_J[:,5],A_T5[:,5],A_V6[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["EE DE" "BS3 DE" "RK4 DE" "T5 DE" "V6 DE"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
-Plots.plot(hcat(A_EE_J[:,6],A_BS3[:,6],A_RK4_J[:,6],A_T5[:,6],A_V6[:,6]),hcat(A_EE_J[:,5],A_BS3[:,5],A_RK4_J[:,5],A_T5[:,5],A_V6[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["EE DE" "BS3 DE" "RK4 DE" "T5 DE" "V6 DE"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
+Plots.plot(A_EE_Jq[:,3],hcat(A_EE_Jq[:,5],A_BS3q[:,5],A_RK4_Jq[:,5],A_T5q[:,5],A_V6q[:,5]),xscale=:log10, yscale=:log10,title="Largest eigenvalue error A",label=["EE DE q" "BS3 DE q" "RK4 DE q" "T5 DE q" "V6 DE q"],markershapes= [:circle],xlabel = "number of steps",ylabel = "eigenvalue error")
+Plots.plot(hcat(A_EE_Jq[:,6],A_BS3q[:,6],A_RK4_Jq[:,6],A_T5q[:,6],A_V6q[:,6]),hcat(A_EE_Jq[:,5],A_BS3q[:,5],A_RK4_Jq[:,5],A_T5q[:,5],A_V6q[:,5]),xscale=:log10, yscale=:log10,title="Comparaison of methods A",label=["EE DE" "BS3 DE" "RK4 DE" "T5 DE" "V6 DE"],markershapes= [:circle],xlabel = "function calls",ylabel = "eigenvalue error")
