@@ -109,6 +109,10 @@ function A(t,v1)
     [-v1[2] -(v1[3]+v1[4]*cos(v1[1]*t)); 1.0 0.0]
 end
 
+# function A(t,v1)
+#     [-v1[2] -(v1[3]+v1[4]*sign(cos(v1[1]*t))); 1.0 0.0]
+# end
+
 function B(t,v1)
     [0.0 v1[5]; 0.0 0.0]
 end

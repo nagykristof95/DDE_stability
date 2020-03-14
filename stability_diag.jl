@@ -10,12 +10,20 @@ pygui(true);
 using DelimitedFiles
 using Random
 using DifferentialEquations
+using Revise
+includet("ISIM_DE_sol.jl")
+includet("ISIM_LMS_RK.jl")
+includet("ISIM.jl")
+using Main.SIDE
+using Main.SILMRK
+using Main.SI
+
 rng = MersenneTwister(1234)
 
 ####### Multi-Dimensional Bisection Method #########
 
 function foo(x,y)
-    return(norm(normmax(ISIM([omega kappa x epsilon y tau0])[:,end]))-0.8)
+    return(norm(BAS.normmax(ISIM([omega kappa x epsilon y tau0],(n,gmax,mult,BAS.BRK4))[:,end]))-1)
 end
 
 

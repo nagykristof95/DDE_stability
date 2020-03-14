@@ -14,12 +14,13 @@ using Revise
 includet("system_definition.jl")
 using Main.SYS
 
-export bc_model,it,sub, res1, res2, evplot,butcher,out1,to
+export bc_model,it,sub, res1, res2, evplot,butcher,out1,to,res1full,res2full
 
 to = TimerOutput()
 
 rng = MersenneTwister(1234)
-inttyp0=BSpline(Quadratic(Line(OnGrid())))
+#inttyp0=BSpline(Linear())
+inttyp0=BSpline(Cubic(Line(OnGrid())))
 
 function f(t,y,ytau,v1) #right-hand side for TNS
     SYS.A(t,v1)*y+SYS.B(t,v1)*ytau
@@ -30,7 +31,7 @@ function Amult(t,v1,mult1)
     for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
-            Atemp[i1+j,i1+jj] =  A(t,v1)[j,jj]
+                Atemp[i1+j,i1+jj] =  A(t,v1)[j,jj]
             end
         end
     end
@@ -115,7 +116,6 @@ end
 function it(A) #creating complex iteration array
     inttyp=inttyp0
     #inttyp=BSpline(Quadratic(Line(OnGrid())))
-    #inttyp=BSpline(Cubic(Reflect(OnCell())))
     #inttyp=BSpline(Cubic(Line(OnGrid())))
     #inttyp=BSpline(Linear())
     matrdim=size(A,2)-1
@@ -139,6 +139,15 @@ end
 function sub(it,t) #substitution in interpolating function
     subdim=size(it,1)
     out=zeros(ComplexF64,subdim)
+    tend=(it[1].ranges[1])[end]
+    tstart=(it[1].ranges[1])[1]
+    if t>tend
+        t=tend-1e-16
+        println("Interpolation adjusted at end of range!")
+    elseif t<tstart
+        t=tstart+1e-16
+        println("Interpolation adjusted at start of range!")
+    end
     for j = 1:subdim
         out[j]=it[j,1](t)+it[j,2](t)*im
     end
@@ -207,5 +216,43 @@ function res2(solvar)
     return(ret)
 end
 
+function res1full(solvar)
+    n1=size(solvar)[1]
+    multvar=convert(Int,size(solvar)[2]/dim)
+    ret=zeros(ComplexF64,dim*n1,multvar)
+    for j=1:multvar
+        for jj=1:n1
+        ret[1+(jj-1)*dim:1+(jj-1)*dim+(dim-1),j]=solvar[jj,1+(j-1)*dim:1+(j-1)*dim+(dim-1)]
+        end
+    end
+    return(ret)
+end
+
+function res2full(solvar)
+    n1=convert(Int,size(solvar)[1]/dim)
+    multvar=size(solvar)[2]
+    ret=zeros(ComplexF64,n1,dim*multvar)
+    for j=1:multvar
+        for jj=1:n1
+        ret[jj,1+(j-1)*dim:1+(j-1)*dim+(dim-1)]=solvar[1+(jj-1)*dim:1+(jj-1)*dim+(dim-1),j]
+        end
+    end
+    return(ret)
+end
+
+function convreq(eigval0,N,tol)
+    mult1=size(eigval0)[1] #number of eigenvalues calcualted
+    if mult1<3 return(false) end #if only one or two eigenvalues are caluclated we won't append anything
+    eigval1=norm.(eigval0) #array with norms of eigenvalues
+    eigvalsort=sort(eigval1,rev = true) #sorted norms
+    diff=[abs(eigvalsort[j]-eigvalsort[jj]) for j=1:N, jj=1:N]
+    nover0=length(diff[diff .< tol])
+    nover=(nover0-N)/2
+    if nover>1
+        return(true)
+    else
+        return(false)
+    end
+end
 
 end #module end

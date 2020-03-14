@@ -22,11 +22,6 @@ export ISIM, toISIM
 toISIM = TimerOutput()
 rng = MersenneTwister(1234)
 
-setprecision(32)
-
-BigFloat(2.6+3.0)
-
-@biginterval BigFloat(2.6)
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
@@ -54,7 +49,6 @@ function fsol(tau,IF,AA,BB,tend,mult1,dt1,alg0) #DE.jl solution defintion from 0
     u0 = sub(interp,0.0)
     prob = DDEProblem(bc_model,u0,h,tspan,p; constant_lags=lags)
     return(solve(prob,alg0,adaptive=false,dt=dt1,progress=true))
-
 end
 
 
@@ -77,6 +71,10 @@ function iter(S1,V1)
        H=pinv(S)*V #pseudo-inverse calculation
        eigH=eigen(H)
        Hval=eigH.values #eigenvalue calculation
+       # EIGVEC=eigH.vectors
+       # EIGVALS=diagm(eigH.values)
+       #
+       # println(maximum(abs.(H-EIGVEC*EIGVALS*inv(EIGVEC))))
        Vj0=V*eigH.vectors #calculating of new set of eigenvectors
        Vj=zeros(ComplexF64,n1*dim,mult1)
        for j=1:mult1
@@ -114,7 +112,7 @@ function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"
-                solarr=fsol(tau(v1),sol0[1:nvar+1,:],BAS.Ai(v1),BAS.Bi(v1),nmax*dt,multvar,dt,ALG)
+                solarr=fsol(tau(v1),sol0[1:nvar,:],BAS.Ai(v1),BAS.Bi(v1),nmax*dt,multvar,dt,ALG)
 
                 for tv=0:nvar-1
                     for j=1:multvar*dim
@@ -124,9 +122,9 @@ function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
 
             elseif method == "RK"
                 for k=1:kint
-                interp=it(sol0[1+(k-1)*(nvar-1):nvar+1+(k-1)*(nvar-1),:])
+                interp=it(sol0[1+(k-1)*(nvar-1):nvar+(k-1)*(nvar-1),:])
                     for j=1:(nvar-1)
-                        sol0[nvar+j+(k-1)*(nvar-1),2:end]=transpose(butcher(real(sol0[nvar+(j-1)+(k-1)*(nvar-1),1])+1e-14,interp,sol0[nvar+(j-1)+(k-1)*(nvar-1),2:end],dt,ALG,v1,tau(v1),multvar))
+                        sol0[nvar+j+(k-1)*(nvar-1),2:end]=transpose(butcher(real(sol0[nvar+(j-1)+(k-1)*(nvar-1),1]),interp,sol0[nvar+(j-1)+(k-1)*(nvar-1),2:end],dt,ALG,v1,tau(v1),multvar))
                     end
                 end
                 if nrest>0
