@@ -10,7 +10,10 @@ using PyPlot
 pygui(true);
 using Revise
 includet("ISIM_LMS_RK.jl")
+includet("SDM.jl")
 using Main.SILMRK
+using Main.SD
+using Main.SIDE
 
 function test_gm(gmaxtest1,ntest1,multtest1,rep,valref)
     gmaxn=size(gmaxtest1)[1]
@@ -31,6 +34,10 @@ function test_gm(gmaxtest1,ntest1,multtest1,rep,valref)
                         valtemp=@timed ISIM_LMS_RK(v,(ntest1[j3],gmaxtest1[j2],multtest1[j1],ALG0))
                         tempeval=TimerOutputs.ncalls(SILMRK.toSILMRK["fmult_LM"])
                         reset_timer!(SILMRK.toSILMRK)
+                    elseif meth=="SDfull"
+                        valtemp=@timed SDM_full(v,(ntest1[j3],gmaxtest1[j2],multtest1[j1],ALG0))
+                        tempeval=TimerOutputs.ncalls(SD.toSDM["f_SDM"])
+                        reset_timer!(SD.toSDM)
                 end
                     tabtemperr[j4]=BAS.normmax((valtemp[1])[:,end])
                     tabtempcomp[j4]=valtemp[2]
@@ -47,19 +54,50 @@ function test_gm(gmaxtest1,ntest1,multtest1,rep,valref)
     return(table)
 end
 
-#graph parameters
+#point A
+omega=1; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;
+vA=[omega kappa delta epsilon b tau0]
+#point B
+omega=1; kappa=0.2; delta=3.246; epsilon=1.0; b=-0.81; tau0=2*pi;
+vB=[omega kappa delta epsilon b tau0]
+
+#SDM test
+meth="SDfull"
+n=100
 gmax=40
 mult=40
-gmaxtest=collect(2:1:20)
-multtest=collect(2:1:20)
-rep1=2
+ALG0="Full"
+valrefAn=BAS.normmax(SDM_full(vA,(n,gmax,mult,ALG0)))
+valrefA=real(valrefAn)+im*abs(imag(valrefAn))
+valrefBn=BAS.normmax(SDM_full(vB,(n,gmax,mult,ALG0)))
+valrefB=real(valrefBn)+im*abs(imag(valrefBn))
+gmaxtest=collect(2:1:16)
+multtest=collect(2:2:10)
+ntest=collect(n:1:n)
+rep1=1
 
+ALG0="ISI"
+#point A
+v=vA
+A_100=test_gm(gmaxtest,ntest,multtest,rep1,valrefA)
+
+Plots.heatmap(A_100[:,1],A_100[:,2],log10.(A_100[:,5]),st=:surface,color=:deep,camera=(90,-90),clims=(-16.0,1))
+Plots.scatter(A_100[:,1].*A_100[:,2],A_100[:,5],seriestype = :scatter,series_annotations = Plots.text.(convert.(Int16,A_100[:,1]), :below, 10),yscale=:log10,label="A n=100",xlabel = "~tCPU",ylabel = "#error")
+Plots.scatter(A_100[:,4],A_100[:,5],seriestype = :scatter,series_annotations = Plots.text.(convert.(Int16,A_100[:,1]), :below, 10),xscale=:log10,yscale=:log10,label="A n=100",xlabel = "~tCPU",ylabel = "#error")
+
+#point B
+v=vB
+B_100=test_gm(gmaxtest,ntest,multtest,rep1,valrefB)
+Plots.plot(B_100[:,1],B_100[:,2],log10.(B_100[:,5]),st=:surface,color=:deep,camera=(90,90),clims=(-16.0,1),xlabel = "#eigenvalue",ylabel = "#iteration")
+Plots.scatter(B_100[:,1].*B_100[:,2],B_100[:,5],seriestype = :scatter,series_annotations = Plots.text.(convert.(Int16,B_100[:,1]), :below, 10),yscale=:log10,label="B n=100",xlabel = "~tCPU",ylabel = "#error")
+Plots.scatter(B_100[:,4],B_100[:,5],seriestype = :scatter,series_annotations = Plots.text.(convert.(Int16,B_100[:,1]), :below, 10),yscale=:log10,label="B n=100",xlabel = "~tCPU",ylabel = "#error")
+
+Plots.savefig("1.pdf")
+#####LMS test
 meth="LMS"
 ALG0=BAS.BLM4
 
 #point A
-omega=1; kappa=0.2; delta=2.5; epsilon=1.0; b=0.5; tau0=2*pi;
-vA=[omega kappa delta epsilon b tau0]
 v=vA
 n=200
 

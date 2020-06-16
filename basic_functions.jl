@@ -6,6 +6,7 @@ using LinearAlgebra
 using Interpolations
 using Random
 using DifferentialEquations
+using SparseArrays
 using Plots
 pyplot()
 using PyPlot
@@ -14,20 +15,30 @@ using Revise
 includet("system_definition.jl")
 using Main.SYS
 
-export bc_model,it,sub, res1, res2, evplot,butcher,out1,to,res1full,res2full
+export bc_model,it,sub, res1, res2, evplot,butcher,out1,to,res1full,res2full,convreq,sorteigvals
 
 to = TimerOutput()
 
 rng = MersenneTwister(1234)
+setprecision(BigFloat,128)
+setrounding(BigFloat, RoundUp)
+
+prec=Float64
+precF=ComplexF64
+# prec=BigFloat
+# precF=Complex{BigFloat}
+
+#inttyp0=BSpline(Constant())
 #inttyp0=BSpline(Linear())
-inttyp0=BSpline(Cubic(Line(OnGrid())))
+inttyp0=BSpline(Quadratic(Line(OnGrid())))
+#inttyp0=BSpline(Cubic(Line(OnGrid())))
 
 function f(t,y,ytau,v1) #right-hand side for TNS
     SYS.A(t,v1)*y+SYS.B(t,v1)*ytau
 end
 
 function Amult(t,v1,mult1)
-    Atemp=zeros(ComplexF64,mult1*dim,mult1*dim)
+    Atemp=sparse(zeros(precF,mult1*dim,mult1*dim))
     for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -39,7 +50,7 @@ function Amult(t,v1,mult1)
 end
 
 function Bmult(t,v1,mult1)
-    Btemp=zeros(ComplexF64,mult1*dim,mult1*dim)
+    Btemp=sparse(zeros(precF,mult1*dim,mult1*dim))
     for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -97,8 +108,8 @@ BLM4=([0.0,0.0,0.0,-1.0,0.0],[-9/24,37/24,-59/24,55/24,0.0])
 
 function butcher(t,inttau,y,dt1,(Ba1,Bb1,Bc1),v1,tau1,mult1) #one step by Butcher table (explicit only!)
     s=size(Bb1)[1]
-    kvec=zeros(ComplexF64,dim*mult1,s)
-    Svec=zeros(ComplexF64,dim*mult1,s)
+    kvec=zeros(precF,dim*mult1,s)
+    Svec=zeros(precF,dim*mult1,s)
     for j=1:s
         for jj=1:s
             Svec[:,j]=Svec[:,j]+Ba1[j,jj]*kvec[:,jj]
@@ -138,7 +149,9 @@ end
 
 function sub(it,t) #substitution in interpolating function
     subdim=size(it,1)
-    out=zeros(ComplexF64,subdim)
+    # deltat=it[1].ranges[1][2]-it[1].ranges[1][1]
+    # t=t-deltat/2
+    out=zeros(precF,subdim)
     tend=(it[1].ranges[1])[end]
     tstart=(it[1].ranges[1])[1]
     if t>tend
@@ -184,7 +197,7 @@ function evplot(a,k) #eigenvalue plot with circle
     U=a[:,k]
     eigRe1=[real(U[n,1]) for n in 1:size(U,1)]
     eigIm1=[imag(U[n,1]) for n in 1:size(U,1)]
-    plot1=Plots.plot(eigRe1,eigIm1,seriestype=:scatter)
+    plot1=Plots.plot(eigRe1,eigIm1,seriestype=:scatter,aspect_ratio=true)
     Re_circle=[cos(n) for n in 0:0.05:2*pi]
     Im_circle=[sin(n) for n in 0:0.05:2*pi]
     return(Plots.plot!(plot1,Re_circle,Im_circle))
@@ -199,7 +212,7 @@ end
 function res1(solvar)
     s=size(solvar)[1]
     multvar=convert(Int,s/dim)
-    ret=zeros(ComplexF64,dim,multvar)
+    ret=zeros(precF,dim,multvar)
     for j=1:multvar
         ret[:,j]=solvar[1+(j-1)*dim:j*dim]
     end
@@ -209,7 +222,7 @@ end
 function res2(solvar)
     s=size(solvar)[2]
     multvar=convert(Int,s)
-    ret=zeros(ComplexF64,dim*multvar)
+    ret=zeros(precF,dim*multvar)
     for j=1:multvar
         ret[1+(j-1)*dim:j*dim]=solvar[:,j]
     end
@@ -219,7 +232,7 @@ end
 function res1full(solvar)
     n1=size(solvar)[1]
     multvar=convert(Int,size(solvar)[2]/dim)
-    ret=zeros(ComplexF64,dim*n1,multvar)
+    ret=zeros(precF,dim*n1,multvar)
     for j=1:multvar
         for jj=1:n1
         ret[1+(jj-1)*dim:1+(jj-1)*dim+(dim-1),j]=solvar[jj,1+(j-1)*dim:1+(j-1)*dim+(dim-1)]
@@ -231,7 +244,7 @@ end
 function res2full(solvar)
     n1=convert(Int,size(solvar)[1]/dim)
     multvar=size(solvar)[2]
-    ret=zeros(ComplexF64,n1,dim*multvar)
+    ret=zeros(precF,n1,dim*multvar)
     for j=1:multvar
         for jj=1:n1
         ret[jj,1+(j-1)*dim:1+(j-1)*dim+(dim-1)]=solvar[1+(jj-1)*dim:1+(jj-1)*dim+(dim-1),j]
@@ -253,6 +266,10 @@ function convreq(eigval0,N,tol)
     else
         return(false)
     end
+end
+
+function sorteigvals(eigval0)
+    eigvalsort=sort(eigval0,by=norm,rev=true)
 end
 
 end #module end

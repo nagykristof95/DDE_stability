@@ -1,5 +1,6 @@
 module SI
 
+using SparseArrays
 using TimerOutputs
 using Printf
 using Statistics
@@ -21,12 +22,13 @@ export ISIM, toISIM
 
 toISIM = TimerOutput()
 rng = MersenneTwister(1234)
-
+gmax_add=4
+mult_add=4
 
 function bc_model(du,u,h,p,t) #DE.jl problem definiton
     tau,AA,BB,mult1 = p
     h( out1, p, t-tau)
-    dutemp=zeros(ComplexF64,mult1*dim)
+    dutemp=sparse(zeros(ComplexF64,mult1*dim))
     @timeit toISIM "fmult_Julia" for i1=0:dim:(mult1-1)*dim
         for j=1:dim
             for jj=1:dim
@@ -107,8 +109,10 @@ function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
         sol0m=zeros(ComplexF64,nvar,multvar*dim)
         sol0=zeros(ComplexF64,size(tvec)[1],multvar*dim+1)
         Hval0=zeros(ComplexF64,multvar)
-
-        for g=1:gmaxvar
+        precised=true
+        mult0=multvar
+        g=1
+        while g <= gmaxvar
             sol0=hcat(tvec,vcat(sol00,sol))
 
             if method == "Julia"
@@ -138,7 +142,15 @@ function ISIM(v1,(nvar,gmaxvar,multvar,ALG))
             end
             resit=iter(sol0[1:nvar,2:multvar*dim+1],sol0m)
             sol00=resit[1]
-            Hval0=hcat(Hval0,resit[2])
+            Hval0=hcat(Hval0,BAS.sorteigvals(resit[2])[1:mult0])
+            if convreq(Hval0[:,end],3,0.1) && g==gmaxvar && precised==false
+                multvar=multvar+mult_add
+                gmaxvar=gmaxvar+gmax_add
+                sol=zeros(ComplexF64,nmax,multvar*dim)
+                sol00=hcat(sol00,randn!(rng, zeros(ComplexF64,nvar,mult_add*dim)))
+                precised=true
+            end
+            g += 1
         end
         print(gmaxvar)
         return(Hval0[:,2:end])
